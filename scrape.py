@@ -96,3 +96,15 @@ def contains_strong_kw(descr: str):
   # if terms_contained == []:
   #   return None
   return terms_contained
+
+if __name__ == "__main__":
+  jobs = get_jobs_info()
+  jobs["text"] = jobs["link"].apply(get_job_text)
+  jobs["text"] = jobs["text"].apply(process_descr)
+  jobs["strong_kw"] = jobs["text"].apply(contains_strong_kw)
+  
+  for job in jobs[jobs["strong_kw"].apply(len) > 0].itertuples():
+    print(f"{job.title} ({job.level})")
+    print(f"{job.link}")
+    print(f"{job.strong_kw}")
+    print()
