@@ -1,4 +1,5 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import requests
@@ -93,16 +94,21 @@ def contains_strong_kw(descr: str):
     if term in descr:
       terms_contained.append(term)
 
-  # if terms_contained == []:
-  #   return None
   return terms_contained
 
+
 if __name__ == "__main__":
+  # Get jobs info simultaneously with multithreading
+  with ThreadPoolExecutor(max_workers=10) as executor:
+    jobs = executor.submit(get_jobs_info)
+    jobs = jobs.result()
+    
+
   jobs = get_jobs_info()
   jobs["text"] = jobs["link"].apply(get_job_text)
   jobs["text"] = jobs["text"].apply(process_descr)
   jobs["strong_kw"] = jobs["text"].apply(contains_strong_kw)
-  
+
   for job in jobs[jobs["strong_kw"].apply(len) > 0].itertuples():
     print(f"{job.title} ({job.level})")
     print(f"{job.link}")
