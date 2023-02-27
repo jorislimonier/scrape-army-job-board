@@ -1,3 +1,4 @@
+import asyncio
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -57,6 +58,9 @@ def get_jobs_info() -> pd.DataFrame:
 def get_job_text(job_link: str) -> str:
   """
   Get the description of a job.
+
+  Returns:
+    str: Description of the job
   """
   global _calls_counter
   if "_calls_counter" in vars() or "_calls_counter" in globals():
@@ -65,7 +69,8 @@ def get_job_text(job_link: str) -> str:
     _calls_counter = 0
 
   # Check that job is running
-  print(f"Getting job description {_calls_counter}")
+  print(f"Getting job description {_calls_counter}\n", end="")
+
   r = requests.get(job_link)
   html = r.text
   soup = BeautifulSoup(html, "html.parser")
@@ -75,7 +80,33 @@ def get_job_text(job_link: str) -> str:
   return job_text
 
 
+async def send_async_request(link):
+  """
+  Send an async request to get the description of a job.
+  """
+  return await asyncio.to_thread(get_job_text, link)
+
+
+async def get_job_descriptions(links) -> None:
+  """
+  Get the description of each job.
+  """
+  job_descriptions = await asyncio.gather(*[send_async_request(link) for link in links])
+  return job_descriptions
+
+
 def process_descr(descr: str) -> str:
+  """
+  Process the description of a job.
+
+  - Remove accents
+  - Lowercase
+  - Replace newlines and tabs by spaces
+  - Replace multiple spaces by one space
+
+  Returns:
+    str: Processed description
+  """
   if pd.isna(descr):
     return descr
   descr = unidecode.unidecode(descr)
@@ -87,6 +118,12 @@ def process_descr(descr: str) -> str:
 
 
 def contains_strong_kw(descr: str):
+  """
+  Check if the description of a job contains a strong keyword.
+
+  Returns:
+    list: List of strong keywords contained in the description
+  """
   if pd.isna(descr):
     return []
   terms_contained = []
@@ -97,15 +134,9 @@ def contains_strong_kw(descr: str):
   return terms_contained
 
 
-if __name__ == "__main__":
-  # Get jobs info simultaneously with multithreading
-  with ThreadPoolExecutor(max_workers=10) as executor:
-    jobs = executor.submit(get_jobs_info)
-    jobs = jobs.result()
-    
-
+async def main():
   jobs = get_jobs_info()
-  jobs["text"] = jobs["link"].apply(get_job_text)
+  jobs["text"] = await get_job_descriptions(jobs["link"])
   jobs["text"] = jobs["text"].apply(process_descr)
   jobs["strong_kw"] = jobs["text"].apply(contains_strong_kw)
 
@@ -114,3 +145,6 @@ if __name__ == "__main__":
     print(f"{job.link}")
     print(f"{job.strong_kw}")
     print()
+
+if __name__ == "__main__":
+  asyncio.run(main())
